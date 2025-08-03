@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-qdrant-client
-sentence-transformers
-numpy
-pydantic
-chroma  # 例としてChromaを使う場合。qdrant-client, pymilvus等に換装可。
