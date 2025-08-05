@@ -1,0 +1,46 @@
+name: Auto merge file to target directory
+
+on:
+  workflow_dispatch:      # 手動起動イベント
+    inputs:
+      target_dir:
+        description: 'Directory to move/copy files to'
+        required: true
+        default: 'target-dir'
+
+  push:
+    branches:
+      - main
+
+jobs:
+  move-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Move files to target directory
+        run: |
+          mkdir -p ${{ github.event.inputs.target_dir }}
+          # 例として複数ファイルをコピー
+          cp path/to/file1 ${{ github.event.inputs.target_dir }}/
+          cp path/to/file2 ${{ github.event.inputs.target_dir }}/
+          
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit changes
+        run: |
+          git add "${{ github.event.inputs.target_dir }}"
+          git diff-index --quiet HEAD || git commit -m "Auto move files to ${{ github.event.inputs.target_dir }}"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
