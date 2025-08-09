@@ -1,0 +1,8 @@
+# Django本体
+Django>=4.2,<5.0
+
+# WSGIサーバー（本番用 Gunicorn）
+gunicorn>=20.1,<21.0
+
+# PostgreSQL用ドライバ
+psycopg2-binary>=2.9,<3.0
