@@ -1,5 +1,6 @@
 import logoOS from "./logo-os.jpg"
 import logoOS2 from "./logo-os-light.jpg"
+import { Link } from 'react-router-dom';
 
 export function Welcome() {
   return (
@@ -27,17 +28,18 @@ export function Welcome() {
             <ul>
               {resources.map(({ href, text, icon }) => (
                 <li key={href}>
-                  <a
+                  <Link
                     className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-                    href={href}
-                    target="_blank"
+                    to={href}
+                    target=""
                     rel="noreferrer"
                   >
                     {icon}
                     {text}
-                  </a>
+                  </Link>
                 </li>
               ))}
+              
             </ul>
           </nav>
         </div>
@@ -48,7 +50,7 @@ export function Welcome() {
 
 const resources = [
   {
-    href: "https://github.com/yuugiouduele/apis",
+    href: "/page",
     text: "MultiModalAI fusion OS project",
     icon: (
       <svg

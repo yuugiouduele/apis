@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import {Mains} from "../comp/main"
+import {SearchBar} from "../comp/search"
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +9,5 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
-  return <Mains/>;
+  return <SearchBar/>;
 }
