@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import {SearchBar} from "../comp/search"
+import {SearchBar} from "../comp/search-test"
 
 export function meta({}: Route.MetaArgs) {
   return [

@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Paperclip, Send, Bot, Zap, Brain, Sparkles, Play, Film, Youtube, Video, Tv } from 'lucide-react';
 
-const SearchBar = () => {
+export const SearchBar = () => {
   const [query, setQuery] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt-4');
   const [selectedVideoEngine, setSelectedVideoEngine] = useState('youtube');
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [currentEngine, setCurrentEngine] = useState('ai'); // 'ai' or 'video'
   const [isTransitioning, setIsTransitioning] = useState(false);
   
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const lastWheelTime = useRef(0);
   const wheelDeltaX = useRef(0);
 
@@ -42,19 +42,21 @@ const SearchBar = () => {
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
+  // KeyPress（例: textareaへの入力イベント）
+const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleSubmit();
+  }
+};
 
-  const handleFileAttach = (e) => {
-    const files = Array.from(e.target.files);
-    setAttachedFiles(prev => [...prev, ...files]);
-  };
+// ファイル添付（input type="file" のonChangeイベント）
+const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const files = Array.from(e.target.files ?? []);
+  setAttachedFiles(prev => [...prev, ...files]);
+};
 
-  const removeFile = (index) => {
+  const removeFile = (index:number) => {
     setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -75,47 +77,41 @@ const SearchBar = () => {
     }, 1000);
   };
 
-  // マウスパッド/トラックパッドのスワイプイベントハンドラー
-  const handleWheel = (e) => {
-    if (isTransitioning) return;
-    
-    const now = Date.now();
-    const timeDelta = now - lastWheelTime.current;
-    
-    // 横方向のスクロールを検出（trackpadのスワイプ）
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      e.preventDefault(); // 横スクロールを防止
-      
-      wheelDeltaX.current += e.deltaX;
-      
-      // スワイプの蓄積値が閾値を超えた場合
-      const threshold = 150;
-      if (Math.abs(wheelDeltaX.current) > threshold) {
-        // スワイプ方向に関係なく切り替え
-        switchEngine();
-        wheelDeltaX.current = 0; // リセット
-        lastWheelTime.current = now;
-        return;
+const handleWheel = (e: WheelEvent) => {
+  if (isTransitioning) return;
+
+  const now = Date.now();
+  const timeDelta = now - lastWheelTime.current;
+
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    e.preventDefault();
+    wheelDeltaX.current += e.deltaX;
+
+    const threshold = 150;
+    if (Math.abs(wheelDeltaX.current) > threshold) {
+      switchEngine();
+      wheelDeltaX.current = 0;
+      lastWheelTime.current = now;
+      return;
+    }
+  }
+
+  if (timeDelta > 200) {
+    wheelDeltaX.current = e.deltaX || 0;
+  }
+
+  lastWheelTime.current = now;
+
+  setTimeout(() => {
+    if (Date.now() - lastWheelTime.current > 250) {
+      wheelDeltaX.current *= 0.5;
+      if (Math.abs(wheelDeltaX.current) < 10) {
+        wheelDeltaX.current = 0;
       }
     }
-    
-    // 一定時間経過後にデルタをリセット（連続スワイプでない場合）
-    if (timeDelta > 200) {
-      wheelDeltaX.current = e.deltaX || 0;
-    }
-    
-    lastWheelTime.current = now;
-    
-    // 300ms後にデルタを段階的にリセット
-    setTimeout(() => {
-      if (Date.now() - lastWheelTime.current > 250) {
-        wheelDeltaX.current *= 0.5; // 段階的に減少
-        if (Math.abs(wheelDeltaX.current) < 10) {
-          wheelDeltaX.current = 0;
-        }
-      }
-    }, 300);
-  };
+  }, 300);
+};
+
 
   useEffect(() => {
     const container = containerRef.current;
@@ -387,5 +383,3 @@ const SearchBar = () => {
     </div>
   );
 };
-
-export default SearchBar;
