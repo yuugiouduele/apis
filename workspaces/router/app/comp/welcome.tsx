@@ -1,5 +1,5 @@
-import logoOS from "./logo-os.jpg"
-import logoOS2 from "./logo-os-light.jpg"
+import logoOS from "./logo/logo-os.jpg"
+import logoOS2 from "./logo/logo-os-light.jpg"
 import { Link } from 'react-router-dom';
 
 export function Welcome() {
