@@ -1,3 +1,3 @@
-export const authserver=()=>{
+export const authserver=async ()=>{
     await fetch("")
 }
