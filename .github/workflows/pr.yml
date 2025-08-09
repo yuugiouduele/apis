@@ -1,0 +1,50 @@
+name: Validation and Test with Auto Merge
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validation:
+    name: Validate YAML and Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      # YAMLファイル構文やスキーマバリデーション（例: yamllint）
+      - name: Validate YAML files
+        run: |
+          # yamllintはUbuntuランナーで利用可能
+          yamllint .github/workflows/**/*.yml
+          yamllint config/**/*.yml
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validation
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+  auto_merge:
+    name: Auto Merge on Success
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && success() }}
+    steps:
+      - name: Auto merge PR
+        uses: pascalgn/automerge-action@v0.16.3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: squash  # or merge, rebase
