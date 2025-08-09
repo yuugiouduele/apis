@@ -1,5 +1,5 @@
-import logoDark from "./logo-dark.svg";
-import logoLight from "./logo-light.svg";
+import logoOS from "./logo-os.jpg"
+import logoOS2 from "./logo-os-light.jpg"
 
 export function Welcome() {
   return (
@@ -8,13 +8,13 @@ export function Welcome() {
         <header className="flex flex-col items-center gap-9">
           <div className="w-[500px] max-w-[100vw] p-4">
             <img
-              src={logoLight}
-              alt="React Router"
+              src={logoOS2}
+              alt="OS project2"
               className="block w-full dark:hidden"
             />
             <img
-              src={logoDark}
-              alt="React Router"
+              src={logoOS}
+              alt="OS project"
               className="hidden w-full dark:block"
             />
           </div>
@@ -48,8 +48,8 @@ export function Welcome() {
 
 const resources = [
   {
-    href: "https://reactrouter.com/docs",
-    text: "React Router Docs",
+    href: "https://github.com/yuugiouduele/apis",
+    text: "MultiModalAI fusion OS project",
     icon: (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -68,8 +68,8 @@ const resources = [
     ),
   },
   {
-    href: "https://rmx.as/discord",
-    text: "Join Discord",
+    href: "https://github.com/yuugiouduele/math",
+    text: "Join OS projects",
     icon: (
       <svg
         xmlns="http://www.w3.org/2000/svg"
