@@ -15,15 +15,11 @@ COPY requirements.txt /app/
 
 # 依存関係をインストール
 RUN pip install --upgrade pip 
-RUN pip install --no-cache-dir -r requirements.txt --resume-retries=5
+RUN pip install --no-cache-dir --timeout=120 --retries=10 -r requirements.txt
 
-# アプリケーションコードをコピー
-COPY . /app/
-# ポートの指定
-EXPOSE 8000
-
-# 環境変数でPythonのバッファリング設定（ログがすぐ見えるように）
+# 環境変数でPythonの# 公式のPythonランタイムイメージを使用する
+# ッファリング設定（ログがすぐ見えるように）
 ENV PYTHONUNBUFFERED=1
 
 # サーバ起動コマンド（開発環境ではrunserverでよいが本番はGunicorn推奨）
-CMD ["gunicorn", "search.wsgi:application", "--bind", "0.0.0.0:8000"]
+# CMD ["gunicorn", "api.wsgi:application", "--bind", "0.0.0.0:8000"]

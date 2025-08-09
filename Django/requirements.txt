@@ -4,28 +4,5 @@ Django>=4.2,<5.0
 # WSGIサーバー（本番用 Gunicorn）
 gunicorn>=20.1,<21.0
 
-# PostgreSQL用ドライバ（もしPostgreSQLを使うなら）
+# PostgreSQL用ドライバ
 psycopg2-binary>=2.9,<3.0
-
-# 機械学習ライブラリの代表的な主要パッケージ
-numpy>=1.25.0            # 数値計算の基盤
-scipy>=1.11.0            # 科学計算
-pandas>=2.0.0            # データ処理
-scikit-learn>=1.3.0      # 機械学習
-tensorflow>=2.14.0       # 深層学習
-torch>=2.1.0             # PyTorch深層学習フレームワーク
-xgboost>=1.7.6           # 勾配ブースティング決定木
-
-# Transformer関連ライブラリ
-transformers>=4.37.0     # Hugging Face Transformers ライブラリ（BERT, GPTなどのモデル）
-tokenizers>=0.13.0       # 高速トークナイザ（Transformersの依存）
-
-# 画像処理ライブラリ
-opencv-python>=4.8.0     # OpenCV
-
-# 可視化ライブラリ
-matplotlib>=3.8.0
-seaborn>=0.12.2
-
-# その他便利ツール
-jupyterlab>=4.0.0        # JupyterLab（ノートブック環境）

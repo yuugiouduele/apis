@@ -2,10 +2,7 @@
 services:
   web:
     build: .
-    volumes:
-    - .:/app
-    command: gunicorn search.wsgi:application --bind 0.0.0.0:8000
-
+    # command: gunicorn app.wsgi:application --bind 0.0.0.0:8000
     ports:
       - "8000:8000"
     env_file:
@@ -22,7 +19,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U haga -d ${POSTGRES_DB} || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5
