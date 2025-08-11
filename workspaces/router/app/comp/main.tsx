@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 export function Mains(){
   const [visibleChars, setVisibleChars] = useState(0);
@@ -8,10 +8,10 @@ export function Mains(){
   const text = "Happy Welcome";
   
   const questions = [
-    { id: 1, text: "Annual income?", icon: "🌤️" },
-    { id: 2, text: "Skill up?", icon: "🎬" },
-    { id: 3, text: "Business Consulting?", icon: "🍳" },
-    { id: 4, text: "Other contact information", icon: "✈️" }
+    { id: 1, text: "Annual income?", icon: "🌤️" ,href:'/intro'},
+    { id: 2, text: "Skill up?", icon: "🎬" ,href:'/chat'},
+    { id: 3, text: "Business Consulting?", icon: "🍳" ,href:'/manual'},
+    { id: 4, text: "Other contact information", icon: "✈️" ,href:'/'}
   ];
 
   useEffect(() => {
@@ -64,6 +64,8 @@ export function Mains(){
     // ここで質問に対する処理を追加
   };
 
+  const navigate=useNavigate();
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
       {phase !== 'buttons' ? (
@@ -98,7 +100,9 @@ export function Mains(){
             {questions.map((question, index) => (
               <button
                 key={question.id}
-                onClick={() => handleQuestionClick(question.text)}
+                onClick={() => {
+                  handleQuestionClick(question.text);
+                  navigate(question.href);}}
                 className={`
                   group relative p-8 rounded-2xl border-2 border-gray-200 dark:border-gray-700
                   bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl

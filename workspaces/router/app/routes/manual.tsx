@@ -1,5 +1,6 @@
 import type { Route } from "./+types/home";
-import {SearchBar} from "../comp/search-test"
+import { SelfManualComponent } from "../comp/recommend";
+import { Router } from "react-router";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,5 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
-  return<SearchBar/>;
+  return < SelfManualComponent/>;
 }
