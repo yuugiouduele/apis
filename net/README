@@ -1,0 +1,18 @@
+```
+authwebsocket/
+ ├── AuthService
+ │    ├─ GenerateToken(userID) -> JWT発行
+ │    └─ ValidateToken(token)  -> JWT検証
+ │
+ ├── WebSocketServer
+ │    ├─ ServeHTTP            -> 接続＆初回トークン発行
+ │    ├─ readLoop              -> メッセージ受信 & トークン検証
+ │    ├─ batchSendLoop         -> バッチモード時の定期送信
+ │    ├─ EnqueueMessage        -> 外部から送信キュー投入
+ │    ├─ metricsMonitorLoop    -> メモリ/バッファ監視・モード切替
+ │    └─ trySwitchMode         -> バッチ⇔単発モード切替
+ │
+ └── 依存パッケージ：
+        gorilla/websocket, golang-jwt/jwt/v5, runtime
+
+```
