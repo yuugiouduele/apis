@@ -1,0 +1,20 @@
+Organization (1) ---< (N) User
+User (N) ---< (N) Role  (through UserRoles)
+User (1) ---< (N) AccessHistory
+
+User (1) ---< (N) SelfIntroduction
+User (1) ---< (N) Achievement ---< (N) AchievementDetail
+User (1) ---< (N) Request
+User (1) ---< (N) EncryptionKey
+User (1) ---< (N) History  (共通履歴テーブル)
+
+User (1) ---< (N) Video
+User (1) ---< (N) Image
+User (1) ---< (N) Audio
+
+Video, Image, Audio それぞれに対して
+ (N) EncryptionKey
+ (N) History
+
+AIModel (1テーブル、type区分あり)
+AIModelHistory は History テーブルで管理

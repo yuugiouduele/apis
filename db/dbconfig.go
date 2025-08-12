@@ -2,34 +2,44 @@ package db
 
 import (
 	"fmt"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// Config structでホスト、ポート、ユーザ、DB名など設定可能
+// PostgreSQL接続設定
 type Config struct {
 	User     string
 	Password string
 	Host     string
 	Port     int
 	DBName   string
+	SSLMode  string // 例: "disable"
+	TimeZone string // 例: "Asia/Tokyo"
 }
 
-// InitDB : 指定ConfigでDB接続してAutoMigrate実行
+// InitDB は複数モデルを一括でAutoMigrateしてDB接続を返す
 func InitDB(cfg Config) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
-
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
+		cfg.Host, cfg.User, cfg.Password, cfg.DBName, cfg.Port, cfg.SSLMode, cfg.TimeZone,
+	)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// モデルを登録（AutoMigrateでテーブル作成）
-	err = db.AutoMigrate(&User{}, &Post{})
+	// ここにモデルを一括登録（interface{}型のスライス展開で）
+	models := []interface{}{
+		&Organization{}, &User{}, &Role{}, &AccessHistory{},
+		&SelfIntroduction{}, &Achievement{}, &AchievementDetail{}, &Request{}, &EncryptionKey{}, &History{},
+		&Stream{}, &Video{}, &Image{}, &Audio{},
+		&AIModel{},
+	}
+
+	err = db.AutoMigrate(models...)
 	if err != nil {
 		return nil, err
 	}
