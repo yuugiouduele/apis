@@ -1,4 +1,4 @@
-package authwebsocket
+package net
 
 import (
 	"bytes"
@@ -14,81 +14,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 )
-
 // ==================== 認証サービス (JWT) ====================
 
-type AuthService struct {
-	secretKey     []byte
-	tokenDuration time.Duration
-	mu            sync.Mutex
-}
-
-func NewAuthService(secretKey string, tokenDuration time.Duration) *AuthService {
-	return &AuthService{
-		secretKey:     []byte(secretKey),
-		tokenDuration: tokenDuration,
-	}
-}
-
-func (a *AuthService) GenerateToken(userID string) (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(a.tokenDuration).Unix(),
-		"iat":     time.Now().Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(a.secretKey)
-}
-
-func (a *AuthService) ValidateToken(tokenString string) (jwt.MapClaims, error) {
-	tok, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
-		}
-		return a.secretKey, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if claims, ok := tok.Claims.(jwt.MapClaims); ok && tok.Valid {
-		return claims, nil
-	}
-	return nil, errors.New("invalid token")
-}
-
-// ==================== WebSocket サーバ構造体 ====================
-
-type WebSocketServer struct {
-	conn           *websocket.Conn
-	auth           *AuthService
-	sendBuf        [][]byte
-	mu             sync.Mutex
-	batchMode      atomic.Bool
-	memThreshold   uint64
-	bufThreshold   int
-	packetCount    int32
-	lastSwitch     time.Time
-	switchCooldown time.Duration
-	upgrader       websocket.Upgrader
-}
-
-func NewWebSocketServer(auth *AuthService, memThreshold uint64, bufThreshold int, cooldown time.Duration) *WebSocketServer {
-	s := &WebSocketServer{
-		auth:           auth,
-		memThreshold:   memThreshold,
-		bufThreshold:   bufThreshold,
-		switchCooldown: cooldown,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
-		},
-	}
-	s.batchMode.Store(true)
-	s.lastSwitch = time.Now()
-	return s
-}
 
 // ==================== HTTPハンドラ ====================
 
@@ -206,34 +133,7 @@ func (s *WebSocketServer) EnqueueMessage(msg []byte) error {
 	}
 	return err
 }
-
-// ==================== メトリクス監視ループ ====================
-
-func (s *WebSocketServer) metricsMonitorLoop(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	var memStats runtime.MemStats
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			runtime.ReadMemStats(&memStats)
-			alloc := memStats.Alloc
-			s.mu.Lock()
-			bufLen := len(s.sendBuf)
-			s.mu.Unlock()
-			log.Printf("[Metrics] MemAlloc: %d bytes, BufferChunks: %d, PacketsSent: %d, BatchMode: %v",
-				alloc, bufLen, atomic.LoadInt32(&s.packetCount), s.batchMode.Load())
-			if alloc > s.memThreshold || bufLen > s.bufThreshold {
-				s.trySwitchMode(false)
-			} else {
-				s.trySwitchMode(true)
-			}
-		}
-	}
-}
-
+// ==================== メトリクス監視ループ ==================
 // ==================== モード切替 ====================
 
 func (s *WebSocketServer) trySwitchMode(batch bool) {
