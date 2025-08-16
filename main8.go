@@ -22,27 +22,41 @@ const (
 	sampleRate     = 16000
 	channels       = 1
 	bitsPerSample  = 16
-	baseCharDur    = 0.23  // 1モーラ基準秒
-	crossfadeRatio = 0.18  // 隣接音のクロスフェード比
+	baseCharDur    = 0.23 // 1モーラ基準秒
+	crossfadeRatio = 0.18 // 隣接音のクロスフェード比
 	formantCount   = 50
 	masterVolume   = 3400.0
 )
 
+// ===== voice mode =====
+type VoiceMode struct {
+	BaseF0          float64
+	FormantScale    float64
+	MasterVolumeMul float64
+}
+
+var VoiceModes = map[string]VoiceMode{
+	"male":   {BaseF0: 122.0, FormantScale: 1.00, MasterVolumeMul: 1.0},
+	"female": {BaseF0: 210.0, FormantScale: 1.12, MasterVolumeMul: 0.92},
+	"child":  {BaseF0: 290.0, FormantScale: 1.26, MasterVolumeMul: 0.85},
+}
+
+// ===== original types =====
 type consType int
 
 const (
-	consNone consType = iota
-	consPlosive       // 破裂
-	consFricativeS    // /s/ さ行
-	consFricativeSH   // /ʃ/ し系/拗音
-	consNasal         // 鼻音
-	consApproximant   // 半母音
+	consNone        consType = iota
+	consPlosive              // 破裂
+	consFricativeS           // /s/ さ行
+	consFricativeSH          // /ʃ/ し系/拗音
+	consNasal                // 鼻音
+	consApproximant          // 半母音
 )
 
 type phoneme struct {
 	cons      consType
-	v         rune   // あ/い/う/え/お
-	nasal     bool   // ん
+	v         rune // あ/い/う/え/お
+	nasal     bool // ん
 	durScale  float64
 	accentMul float64 // F0倍率（ピッチアクセント）
 	leadCV    float64 // 子音先行係数（CV同化の微調整）
@@ -195,13 +209,13 @@ func toPhonemes(text string) []phoneme {
 }
 
 // ===== 50フォルマント生成 =====
-func buildFormants(core [3]float64, seed int64) FormantBank {
+func buildFormants(core [3]float64, seed int64, scale float64) FormantBank {
 	rng := rand.New(rand.NewSource(seed))
 	F := make([]float64, formantCount)
 	B := make([]float64, formantCount)
 	A := make([]float64, formantCount)
 
-	targets := []float64{core[0], core[1], core[2], core[2] + 800, core[2] + 1400}
+	targets := []float64{core[0] * scale, core[1] * scale, core[2] * scale, core[2]*scale + 800*scale, core[2]*scale + 1400*scale}
 	for i := 0; i < formantCount; i++ {
 		t := targets[i%len(targets)]
 		jit := 1.0 + (rng.Float64()*0.16 - 0.08) // ±8%
@@ -224,9 +238,9 @@ func applyAccent(phs []phoneme, pattern []rune) {
 	for i := 0; i < n; i++ {
 		switch pattern[i] {
 		case 'H', 'ｈ', 'Ｈ', 'h':
-			phs[i].accentMul = 1.10
+			phs[i].accentMul = 1.14 // 少し強めに（基準1.10→1.14)
 		case 'L', 'ｌ', 'Ｌ', 'l':
-			phs[i].accentMul = 0.92
+			phs[i].accentMul = 0.90 // 少し抑える
 		default:
 			phs[i].accentMul = 1.0
 		}
@@ -245,10 +259,10 @@ func applyAccentAuto(perWords [][]phoneme) {
 		for i := range w {
 			if i < drop {
 				alpha := float64(i) / float64(max(1, drop-1))
-				w[i].accentMul = 0.92 + 0.18*alpha // 0.92→1.10
+				w[i].accentMul = 0.90 + 0.28*alpha // 0.90→1.18
 			} else {
 				beta := float64(i-drop) / float64(max(1, len(w)-drop))
-				w[i].accentMul = 1.06 - 0.12*beta // 1.06→0.94
+				w[i].accentMul = 1.08 - 0.14*beta // 1.08→0.94
 			}
 		}
 	}
@@ -294,7 +308,7 @@ func newBiquadBandpass(fc, Q float64) *biquad {
 	cosw0 := math.Cos(w0)
 
 	b0 := Q * alpha
-	b1 := 0
+	b1 := 0.0
 	b2 := -Q * alpha
 	a0 := 1 + alpha
 	a1 := -2 * cosw0
@@ -316,7 +330,7 @@ func (f *biquad) Process(x float64) float64 {
 	return y
 }
 
-// DCカット（1次HPF）
+// DCカット（1次HPF） -- 元実装の近似を維持だが改良版を追加で使う
 type dcHipass struct {
 	a, z float64
 }
@@ -324,7 +338,7 @@ type dcHipass struct {
 func newDCHP() *dcHipass { return &dcHipass{a: 0.995} }
 
 func (h *dcHipass) Process(x float64) float64 {
-	y := x - h.z + h.a*yPrev(h) // y[n] depends on previous y; approximate with state-only update
+	y := x - h.z + h.a*yPrev(h) // 近似
 	h.z = x
 	return y
 }
@@ -345,14 +359,96 @@ func fricativeFilter(cons consType) *biquad {
 // ===== 共鳴の線形補間（連続音でフォルマント遷移） =====
 func lerp(a, b float64, t float64) float64 { return a + (b-a)*t }
 
-// ===== 1音素合成 =====
-func synthPhoneme(p phoneme, nextVowel *rune, seed int64, baseF0 float64, startBreath bool) []int16 {
+// ===== FIR bandpass (windowed-sinc) generator and apply =====
+func makeFIRBandpass(fc1, fc2, fs float64, taps int) []float64 {
+	coeffs := make([]float64, taps)
+	m := taps - 1
+	for n := 0; n < taps; n++ {
+		norm := float64(n - m/2)
+		if n == m/2 {
+			coeffs[n] = 2 * (fc2 - fc1) / fs
+		} else {
+			coeffs[n] = (math.Sin(2*math.Pi*fc2*norm/fs) - math.Sin(2*math.Pi*fc1*norm/fs)) / (math.Pi * norm)
+		}
+		// Hamming window
+		coeffs[n] *= 0.54 - 0.46*math.Cos(2*math.Pi*float64(n)/float64(m))
+	}
+	// normalize energy-ish
+	sum := 0.0
+	for _, c := range coeffs {
+		sum += math.Abs(c)
+	}
+	if sum > 0 {
+		for i := range coeffs {
+			coeffs[i] /= sum
+		}
+	}
+	return coeffs
+}
+
+func applyFIR(input, coeffs []float64) []float64 {
+	taps := len(coeffs)
+	out := make([]float64, len(input))
+	for i := 0; i < len(input); i++ {
+		var sum float64
+		for j := 0; j < taps; j++ {
+			idx := i - j
+			if idx >= 0 {
+				sum += input[idx] * coeffs[j]
+			}
+		}
+		out[i] = sum
+	}
+	return out
+}
+
+// ===== simple 1-pole lowpass and highpass for post-processing =====
+func applyOnePoleLP(input []float64, fc float64) []float64 {
+	out := make([]float64, len(input))
+	if len(input) == 0 {
+		return out
+	}
+	dt := 1.0 / float64(sampleRate)
+	RC := 1.0 / (2 * math.Pi * fc)
+	alpha := dt / (RC + dt)
+	y := 0.0
+	for i := 0; i < len(input); i++ {
+		y = alpha*input[i] + (1-alpha)*y
+		out[i] = y
+	}
+	return out
+}
+
+func applyOnePoleHP(input []float64, fc float64) []float64 {
+	out := make([]float64, len(input))
+	if len(input) == 0 {
+		return out
+	}
+	dt := 1.0 / float64(sampleRate)
+	RC := 1.0 / (2 * math.Pi * fc)
+	alpha := RC / (RC + dt)
+	prevY := 0.0
+	prevX := input[0]
+	for i := 0; i < len(input); i++ {
+		x := input[i]
+		y := alpha * (prevY + x - prevX)
+		out[i] = y
+		prevY = y
+		prevX = x
+	}
+	return out
+}
+
+// ===== 1音素合成 (float版) with accent envelope and noise reduction =====
+func synthPhonemeF(p phoneme, nextVowel *rune, seed int64, baseF0 float64, startBreath bool, formantScale float64, vmGain float64, firCoeffs []float64) []float64 {
 	dur := baseCharDur * p.durScale
-	// ランダム微変動（人間らしさ）
-	dur *= 0.98 + (rand.Float64() * 0.04) // ±2%
+	dur *= 0.99 + (rand.Float64() * 0.02) // ±1% に減らして安定化
 
 	N := int(float64(sampleRate) * dur)
-	out := make([]int16, N)
+	if N <= 0 {
+		return nil
+	}
+	out := make([]float64, N)
 
 	// 共鳴コア（CV遷移補間）
 	core := vowelCore['あ']
@@ -372,115 +468,198 @@ func synthPhoneme(p phoneme, nextVowel *rune, seed int64, baseF0 float64, startB
 		nextCore = core
 	}
 
-	// 50フォルマント
-	bank := buildFormants(core, seed)
+	// 50フォルマント（モードによりスケール）
+	bank := buildFormants(core, seed, formantScale)
 	rng := rand.New(rand.NewSource(seed ^ 0x5bd1e995))
 
-	// ビブラート＋ジッタ/シマー
-	vibHz := 5.3 + (rand.Float64()*0.6-0.3)
-	vibAmt := 0.14 + (rand.Float64()*0.06-0.03) // ±0.14st +-0.03
-	jitter := (rand.Float64()*0.06 - 0.03)      // F0微揺れ(半音単位)
-	shimmer := 1.0 + (rand.Float64()*0.04 - 0.02)
+	// ビブラート＋ジッタ/シマー（ジッタを小さくして滑らかさ向上）
+	vibHz := 5.2 + (rand.Float64()*0.4 - 0.2)
+	vibAmt := 0.10 + (rand.Float64()*0.03 - 0.015) // 減らす
+	jitter := (rand.Float64()*0.02 - 0.01)         // ジッタを弱める
+	shimmer := 1.0 + (rand.Float64()*0.03 - 0.015)
 
-	// fricative filter
+	// fricative biquad (backup)
 	var fric *biquad
 	if p.cons == consFricativeS || p.cons == consFricativeSH {
 		fric = fricativeFilter(p.cons)
 	}
 
-	// 語頭ブレス（小）
+	// 語頭ブレス（更に控えめ）
 	breathAmt := 0.0
 	if startBreath {
-		breathAmt = 0.06
+		breathAmt = 0.035
 	}
+
+	// 子音種別の追加ゲイン（抑え気味）
+	consGain := 1.0
+	switch p.cons {
+	case consPlosive:
+		consGain = 1.08 // さらに抑制
+	case consFricativeS, consFricativeSH:
+		consGain = 1.05 // 抑制
+	case consNasal:
+		consGain = 1.08
+	case consApproximant:
+		consGain = 1.03
+	default:
+		consGain = 1.0
+	}
+
+	// accent envelope parameters
+	// accentMul >1.0 => treat as accented; build a bell-shaped envelope early in the phoneme
+	accentIsHigh := p.accentMul > 1.02
+	// gaussian center early (0.25~0.35), sigma small for sharper yet natural rise
+	center := 0.30
+	sigma := 0.12
 
 	for i := 0; i < N; i++ {
 		t := float64(i) / float64(sampleRate)
-		// F0
-		f0 := baseF0 * p.accentMul
+		u := t / dur
+
+		// accent envelope (0..1)
+		accentEnv := 0.0
+		if accentIsHigh {
+			// gaussian centered at 'center'
+			x := (u - center) / sigma
+			accentEnv = math.Exp(-0.5 * x * x)
+			// scale by (accentMul - 1) to modulate strength
+			accentEnv *= (p.accentMul - 1.0)
+			// clamp
+			if accentEnv > 0.65 {
+				accentEnv = 0.65
+			}
+		} else if p.accentMul < 0.98 {
+			// depressed accent - slight valley
+			x := (u - 0.45) / (sigma * 1.2)
+			accentEnv = -0.3 * math.Exp(-0.5*x*x)
+		}
+
+		// F0 with accent applied smoothly
+		f0 := baseF0 * (1.0 + accentEnv*0.22) // accentEnv increases F0 by up to ~22%
+		// vibrato/jitter
 		f0 *= math.Pow(2, (vibAmt*math.Sin(2*math.Pi*vibHz*t)+jitter)/12.0)
 
-		// 声帯源
+		// source
 		src := math.Sin(2 * math.Pi * f0 * t)
 
-		// フォルマント微揺れ
-		if i%220 == 0 {
-			j := 1.0 + (rng.Float64()*2-1)*0.015
+		// small periodic perturbation of formants
+		if i%240 == 0 {
+			j := 1.0 + (rng.Float64()*2-1)*0.012
 			for k := range bank.Freqs {
 				bank.Freqs[k] *= j
 			}
 		}
 
-		// CV遷移補間：前半は子音寄せ、後半は次母音へ寄せる
-		u := t / dur
+		// CV遷移補間
 		cvLead := p.leadCV
 		cvTrail := p.trailCV
 		alpha := 0.0
 		if u < 0.4 {
-			alpha = cvLead * (0.4 - u) / 0.4 // 立ち上がりで子音寄り（実際は帯域処理で代用）
+			alpha = cvLead * (0.4 - u) / 0.4
 		} else if u > 0.6 {
 			beta := (u - 0.6) / 0.4
-			alpha = -cvTrail * beta // 終わりで次母音へ気持ち寄せ
+			alpha = -cvTrail * beta
 		}
-		// ここでは core 自体の粗い変位として適用
 		for k := 0; k < 3; k++ {
 			target := lerp(core[k], nextCore[k], math.Max(0, (u-0.5)*1.2))
-			bank.Freqs[k] = lerp(bank.Freqs[k], target, 0.03+0.02*alpha)
+			// accent briefly increases formant amplitude by boosting bank.Amps not frequencies
+			bank.Freqs[k] = lerp(bank.Freqs[k], target, 0.02+0.02*alpha)
 		}
 
-		// 簡易共鳴（減衰で包絡）
+		// 共鳴（フォルマント合計） — accent で Amps を強める
 		voc := 0.0
 		for k := 0; k < len(bank.Freqs); k++ {
 			fi := bank.Freqs[k]
 			bw := bank.BW[k]
 			amp := bank.Amps[k]
+			// small accent-based amp boost for clarity
+			ampBoost := 1.0
+			if accentEnv > 0 {
+				ampBoost += 0.28 * accentEnv // up to ~28% boost for accented peak
+			}
 			env := math.Exp(-2 * math.Pi * bw * t / float64(sampleRate))
-			voc += amp * env * math.Sin(2*math.Pi*fi*t)
+			voc += amp * ampBoost * env * math.Sin(2*math.Pi*fi*t)
 		}
 
-		// 子音成分
-		cons := 0.0
+		// 子音成分（ノイズは抑えめ）
+		consVal := 0.0
 		switch p.cons {
 		case consPlosive:
 			if t < 0.028 {
-				cons = (rand.Float64()*2 - 1) * (1.0 - t/0.028) * 0.85
+				consVal = (rand.Float64()*2 - 1) * (1.0 - t/0.028) * 0.48 * consGain
 			}
 		case consFricativeS, consFricativeSH:
 			noise := (rand.Float64()*2 - 1)
 			if fric != nil {
-				noise = fric.Process(noise)
+				noise = fric.Process(noise) // band-limited via biquad
 			}
-			cons = noise * (0.30 + 0.05*math.Sin(2*math.Pi*7.0*t))
+			// apply smaller noise amplitude, but accentEnv slightly increases clarity
+			consVal = noise * (0.18 + 0.03*math.Sin(2*math.Pi*7.0*t)) * consGain * (1.0 + 0.6*accentEnv)
 		case consNasal:
-			cons = 0.24 * math.Sin(2 * math.Pi * 120 * t)
+			consVal = 0.20 * math.Sin(2*math.Pi*120*t) * consGain
 		case consApproximant:
-			cons = 0.06 * (rand.Float64()*2 - 1)
+			consVal = 0.038 * (rand.Float64()*2 - 1) * consGain
+		default:
+			consVal = 0.0
 		}
 
 		// 語頭ブレス
-		cons += breathAmt * (rand.Float64()*2 - 1) * math.Exp(-t*25)
+		consVal += breathAmt * (rand.Float64()*2 - 1) * math.Exp(-t*25)
 
-		// 合成
-		sample := (0.55*src + 0.85*voc + cons)
-		sample *= adsr(t, dur)
+		// 合成（母音寄せで滑らかに）
+		sample := (0.48*src + 1.02*voc + consVal)
+		// accent also slightly sharpens attack via envelope shaping on ADSR
+		env := adsr(t, dur)
+		// make attack slightly stronger when accented
+		if accentEnv > 0 {
+			env *= (1.0 + 0.08*accentEnv)
+		}
+		sample *= env
 		sample *= shimmer
-		sample *= masterVolume
 
-		out[i] = clamp16(sample)
+		// global scaling; vmGain provided by mode
+		sample *= masterVolume * vmGain
+
+		out[i] = sample
+	}
+
+	// fricative の場合は FIR を適用して質感をクリアに（ミックス）
+	if (p.cons == consFricativeS || p.cons == consFricativeSH) && len(firCoeffs) > 0 {
+		filtered := applyFIR(out, firCoeffs)
+		for i := range out {
+			out[i] = 0.70*filtered[i] + 0.30*out[i] // slightly more filtered weight for clarity
+		}
+	}
+
+	// 各音素ピーク管理
+	peak := maxAbsFloat(out)
+	if peak > 0 {
+		if peak < 0.02 {
+			scale := 0.02 / peak
+			for i := range out {
+				out[i] *= scale
+			}
+		}
+		if peak > 0.98 {
+			scale := 0.98 / peak
+			for i := range out {
+				out[i] *= scale
+			}
+		}
 	}
 	return out
 }
 
-// ===== バッファ結合 =====
-func concatWithCrossfade(buffers [][]int16, crossRatio float64) []int16 {
+// ===== バッファ結合（float版、クロスフェード） =====
+func concatWithCrossfadeFloat(buffers [][]float64, crossRatio float64) []float64 {
 	if len(buffers) == 0 {
 		return nil
 	}
 	if len(buffers) == 1 {
 		return buffers[0]
 	}
-	out := make([]int16, 0, len(buffers[0]))
-	out = append(out, buffers[0]]...)
+	out := make([]float64, 0, len(buffers[0]))
+	out = append(out, buffers[0]...)
 	for idx := 1; idx < len(buffers); idx++ {
 		a := out
 		b := buffers[idx]
@@ -490,13 +669,13 @@ func concatWithCrossfade(buffers [][]int16, crossRatio float64) []int16 {
 			continue
 		}
 		startA := len(a) - xf
-		mixed := make([]int16, 0, startA+xf+(len(b)-xf))
+		mixed := make([]float64, 0, startA+xf+(len(b)-xf))
 		mixed = append(mixed, a[:startA]...)
 		for i := 0; i < xf; i++ {
 			wa := 1.0 - float64(i)/float64(xf)
 			wb := float64(i) / float64(xf)
-			s := float64(a[startA+i])*wa + float64(b[i])*wb
-			mixed = append(mixed, clamp16(s))
+			s := a[startA+i]*wa + b[i]*wb
+			mixed = append(mixed, s)
 		}
 		mixed = append(mixed, b[xf:]...)
 		out = mixed
@@ -504,44 +683,48 @@ func concatWithCrossfade(buffers [][]int16, crossRatio float64) []int16 {
 	return out
 }
 
-func normalizePCM(pcm []int16, peak float64) {
-	maxAbs := 1.0
+func maxAbsFloat(buf []float64) float64 {
+	max := 0.0
+	for _, v := range buf {
+		if v < 0 {
+			v = -v
+		}
+		if v > max {
+			max = v
+		}
+	}
+	return max
+}
+
+// ===== PCM正規化（float版） =====
+func normalizePCMFloat(pcm []float64, peak float64) {
+	maxAbs := 1e-9
 	for _, s := range pcm {
-		if a := math.Abs(float64(s)); a > maxAbs {
+		if a := math.Abs(s); a > maxAbs {
 			maxAbs = a
 		}
 	}
-	scale := peak * 32767.0 / maxAbs
-	for i, s := range pcm {
-		pcm[i] = clamp16(float64(s) * scale)
+	if maxAbs == 0 {
+		return
+	}
+	scale := peak * 1.0 / maxAbs
+	for i := range pcm {
+		pcm[i] *= scale
 	}
 }
 
-func pcmToWavLE(pcm []int16) []byte {
-	numSamples := len(pcm)
-	dataSize := numSamples * 2
-	totalSize := 44 + dataSize
-
-	buf := bytes.NewBuffer(make([]byte, 0, totalSize))
-	buf.WriteString("RIFF")
-	binary.Write(buf, binary.LittleEndian, uint32(36+dataSize))
-	buf.WriteString("WAVE")
-	buf.WriteString("fmt ")
-	binary.Write(buf, binary.LittleEndian, uint32(16))
-	binary.Write(buf, binary.LittleEndian, uint16(1))
-	binary.Write(buf, binary.LittleEndian, uint16(channels))
-	binary.Write(buf, binary.LittleEndian, uint32(sampleRate))
-	byteRate := sampleRate * channels * bitsPerSample / 8
-	binary.Write(buf, binary.LittleEndian, uint32(byteRate))
-	blockAlign := channels * bitsPerSample / 8
-	binary.Write(buf, binary.LittleEndian, uint16(blockAlign))
-	binary.Write(buf, binary.LittleEndian, uint16(bitsPerSample))
-	buf.WriteString("data")
-	binary.Write(buf, binary.LittleEndian, uint32(dataSize))
-	for _, s := range pcm {
-		binary.Write(buf, binary.LittleEndian, s)
+// ===== float -> int16 に安全に変換するユーティリティ =====
+func floatSliceToInt16(pcm []float64) []int16 {
+	out := make([]int16, len(pcm))
+	for i, v := range pcm {
+		if v > 1.0 {
+			v = 1.0
+		} else if v < -1.0 {
+			v = -1.0
+		}
+		out[i] = int16(v * 32767.0)
 	}
-	return buf.Bytes()
+	return out
 }
 
 // ===== LRUキャッシュ =====
@@ -555,6 +738,7 @@ type LRUCache struct {
 	ll       *list.List
 	table    map[string]*list.Element
 }
+
 func newLRU(cap int) *LRUCache {
 	return &LRUCache{capacity: cap, ll: list.New(), table: make(map[string]*list.Element)}
 }
@@ -586,7 +770,7 @@ func (c *LRUCache) Put(k string, v []byte) {
 	}
 }
 
-// ===== 合成パイプライン =====
+// ===== 合成パイプライン（mode対応） =====
 var ttsCache = newLRU(64)
 
 func hashKey(s string) string {
@@ -600,22 +784,47 @@ func splitWordsPreserveSpaces(s string) []string {
 	return parts
 }
 
-func synthText(text, accent string) []byte {
-	key := hashKey("v2|" + text + "|" + accent)
+// 再帰で合成（単語内の音素列）
+func synthPhonemesRecursive(phs []phoneme, baseF0 float64, startSeed int64, vm VoiceMode, firCoeffs []float64) []float64 {
+	n := len(phs)
+	if n == 0 {
+		return nil
+	}
+	if n == 1 {
+		p := phs[0]
+		buf := synthPhonemeF(p, nil, startSeed, baseF0, true, vm.FormantScale, vm.MasterVolumeMul, firCoeffs)
+		return buf
+	}
+	mid := n / 2
+	left := synthPhonemesRecursive(phs[:mid], baseF0, startSeed, vm, firCoeffs)
+	right := synthPhonemesRecursive(phs[mid:], baseF0, startSeed+int64(mid*1337), vm, firCoeffs)
+	return concatWithCrossfadeFloat([][]float64{left, right}, crossfadeRatio)
+}
+
+func synthText(text, accent, mode string) []byte {
+	key := hashKey("v5|" + text + "|" + accent + "|" + mode)
 	if v, ok := ttsCache.Get(key); ok {
 		return v
 	}
 
 	words := splitWordsPreserveSpaces(text)
-	var allPCM []int16
-	baseF0 := 122.0 // 男性寄り
+	var allPCMFloat []float64
+
+	vm, ok := VoiceModes[mode]
+	if !ok {
+		vm = VoiceModes["male"]
+	}
+	baseF0 := vm.BaseF0
+
+	// FIRフィルタ（摩擦音帯域 3500–8000Hz, 63tap）
+	firCoeffs := makeFIRBandpass(3500, math.Min(8000, float64(sampleRate)/2.0), float64(sampleRate), 63)
 
 	for wi, word := range words {
 		if strings.TrimSpace(word) == "" {
 			// 語間無音
 			sil := int(0.08 * float64(sampleRate))
 			for i := 0; i < sil; i++ {
-				allPCM = append(allPCM, 0)
+				allPCMFloat = append(allPCMFloat, 0.0)
 			}
 			continue
 		}
@@ -638,34 +847,68 @@ func synthText(text, accent string) []byte {
 			}
 		}
 
-		// 合成
-		buffers := make([][]int16, 0, len(phs))
+		// 単語内合成（再帰）
 		seed := int64(time.Now().UnixNano() ^ int64(wi*7919))
-		for i, p := range phs {
-			// 次母音（CV遷移用）
-			var nextV *rune
-			if i+1 < len(phs) {
-				nextV = &phs[i+1].v
-			}
-			startBreath := (i == 0) // 語頭のみ
-			buf := synthPhoneme(p, nextV, seed+int64(i*1337), baseF0, startBreath)
-			buffers = append(buffers, buf)
-		}
-		wordPCM := concatWithCrossfade(buffers, crossfadeRatio)
-		allPCM = append(allPCM, wordPCM...)
+		wordPCM := synthPhonemesRecursive(phs, baseF0, seed, vm, firCoeffs)
+
+		allPCMFloat = append(allPCMFloat, wordPCM...)
 
 		// 語間の短い無音
 		sil := int(0.06 * float64(sampleRate))
 		for i := 0; i < sil; i++ {
-			allPCM = append(allPCM, 0)
+			allPCMFloat = append(allPCMFloat, 0.0)
 		}
 	}
 
-	// 正規化
-	normalizePCM(allPCM, 0.95)
-	wav := pcmToWavLE(allPCM)
+	// ポスト処理：全体のハイパス(40Hz)で低域の淀みを除去、その後ローパス(7000Hz)で高域ノイズを丸める
+	allPCMFloat = applyOnePoleHP(allPCMFloat, 40.0)
+	allPCMFloat = applyOnePoleLP(allPCMFloat, 7000.0)
+
+	// 全体正規化（float版）
+	normalizePCMFloat(allPCMFloat, 0.95)
+
+	// 最終段で int16 に変換
+	outInt := make([]int16, len(allPCMFloat))
+	for i, v := range allPCMFloat {
+		if v > 1.0 {
+			v = 1.0
+		} else if v < -1.0 {
+			v = -1.0
+		}
+		outInt[i] = int16(v * 32767.0)
+	}
+
+	wav := pcmToWavLE(outInt)
 	ttsCache.Put(key, wav)
 	return wav
+}
+
+// ===== WAV 出力 =====
+func pcmToWavLE(pcm []int16) []byte {
+	numSamples := len(pcm)
+	dataSize := numSamples * 2
+	totalSize := 44 + dataSize
+
+	buf := bytes.NewBuffer(make([]byte, 0, totalSize))
+	buf.WriteString("RIFF")
+	binary.Write(buf, binary.LittleEndian, uint32(36+dataSize))
+	buf.WriteString("WAVE")
+	buf.WriteString("fmt ")
+	binary.Write(buf, binary.LittleEndian, uint32(16))
+	binary.Write(buf, binary.LittleEndian, uint16(1))
+	binary.Write(buf, binary.LittleEndian, uint16(channels))
+	binary.Write(buf, binary.LittleEndian, uint32(sampleRate))
+	byteRate := sampleRate * channels * bitsPerSample / 8
+	binary.Write(buf, binary.LittleEndian, uint32(byteRate))
+	blockAlign := channels * bitsPerSample / 8
+	binary.Write(buf, binary.LittleEndian, uint16(blockAlign))
+	binary.Write(buf, binary.LittleEndian, uint16(bitsPerSample))
+	buf.WriteString("data")
+	binary.Write(buf, binary.LittleEndian, uint32(dataSize))
+	for _, s := range pcm {
+		binary.Write(buf, binary.LittleEndian, s)
+	}
+	return buf.Bytes()
 }
 
 // ===== HTTP =====
@@ -680,7 +923,11 @@ func speakHandler(w http.ResponseWriter, r *http.Request) {
 		txt = t2
 	}
 	accent := q.Get("accent") // "auto" / "" / "HLHL" 等（語ごとスペース区切り）
-	wav := synthText(txt, accent)
+	mode := q.Get("mode")
+	if mode == "" {
+		mode = "male"
+	}
+	wav := synthText(txt, accent, mode)
 	w.Header().Set("Content-Type", "audio/wav")
 	w.Header().Set("Content-Length", strconv.Itoa(len(wav)))
 	_, _ = w.Write(wav)
@@ -695,7 +942,7 @@ const demoHTML = `<!doctype html>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
 margin:40px;line-height:1.6}
-input,button{font-size:16px;padding:8px;border-radius:10px;border:1px solid #ccc}
+input,button,select{font-size:16px;padding:8px;border-radius:10px;border:1px solid #ccc}
 button{cursor:pointer}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .small{font-size:12px;color:#444}
@@ -707,6 +954,11 @@ code{background:#f4f4f4;padding:2px 6px;border-radius:6px}
 <div class="row">
 <input id="text" size="40" value="こんにちは ししゃしゅしょ さしすせそ" />
 <input id="accent" size="20" placeholder="auto / HLHL ..." value="auto" />
+<select id="mode">
+  <option value="male">male</option>
+  <option value="female">female</option>
+  <option value="child">child</option>
+</select>
 <button id="speak">Speak</button>
 </div>
 <p class="small">例: <code>?text=あめ です&accent=HL LL</code> / <code>?text=きょうは いい てんき&accent=auto</code></p>
@@ -715,7 +967,8 @@ code{background:#f4f4f4;padding:2px 6px;border-radius:6px}
 document.getElementById('speak').onclick = async () => {
   const t = encodeURIComponent(document.getElementById('text').value);
   const a = encodeURIComponent(document.getElementById('accent').value || 'auto');
-  const url = '/speak?text=' + t + '&accent=' + a;
+  const m = encodeURIComponent(document.getElementById('mode').value || 'male');
+  const url = '/speak?text=' + t + '&accent=' + a + '&mode=' + m;
   const res = await fetch(url);
   const blob = await res.blob();
   const obj = URL.createObjectURL(blob);
