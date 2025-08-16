@@ -1,174 +1,194 @@
+// main.go
 package main
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/binary"
+	"flag"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/jpeg"
 	"log"
+	"math"
+	"net"
 	"net/http"
+	"strings"
+	"sync/atomic"
+	"time"
 )
 
-func htmlHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	html := `<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>パンくずリストとアニメーション</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-  }
-  /* パンくずリストスタイル */
-  .breadcrumb {
-    list-style: none;
-    display: flex;
-    padding: 0;
-    margin-bottom: 30px;
-    background: #f0f0f0;
-    border-radius: 5px;
-  }
-  .breadcrumb li {
-    padding: 8px 15px;
-    cursor: pointer;
-    position: relative;
-    background: #ddd;
-    margin-right: 5px;
-    border-radius: 3px;
-    transition: background-color 0.3s ease;
-  }
-  .breadcrumb li:last-child {
-    background: #4CAF50;
-    color: white;
-    cursor: default;
-  }
-  .breadcrumb li:hover:not(:last-child) {
-    background: #aaa;
-  }
-  .breadcrumb li::after {
-    content: '>';
-    position: absolute;
-    right: -15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #555;
-  }
-  .breadcrumb li:last-child::after {
-    content: '';
-  }
-
-  /* スライドショーコンテナ */
-  .slider {
-    width: 100%;
-    max-width: 600px;
-    height: 300px;
-    position: relative;
-    overflow: hidden;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    margin: 0 auto;
-  }
-  .slides {
-    display: flex;
-    width: 500%;
-    height: 100%;
-    transition: transform 0.5s ease-in-out;
-  }
-  .slide {
-    width: 20%;
-    height: 100%;
-    flex-shrink: 0;
-    background-size: cover;
-    background-position: center;
-  }
-
-  /* スライド用ボタン */
-  .slider-controls {
-    text-align: center;
-    margin-top: 10px;
-  }
-  .slider-controls button {
-    background-color: #4CAF50;
-    border: none;
-    color: white;
-    padding: 8px 15px;
-    margin: 0 5px;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 16px;
-  }
-  .slider-controls button:hover {
-    background-color: #45a049;
-  }
-
-</style>
-</head>
-<body>
-
-<!-- パンくずリスト -->
-<ul class="breadcrumb" id="breadcrumb">
-  <li data-index="0">ホーム</li>
-  <li data-index="1">カテゴリ</li>
-  <li data-index="2">サブカテゴリ</li>
-  <li data-index="3">現在のページ</li>
-</ul>
-
-<!-- スライドショー -->
-<div class="slider">
-  <div class="slides" id="slides">
-    <div class="slide" style="background-image:url('https://via.placeholder.com/600x300/FF5733/ffffff?text=Slide+1');"></div>
-    <div class="slide" style="background-image:url('https://via.placeholder.com/600x300/33C1FF/ffffff?text=Slide+2');"></div>
-    <div class="slide" style="background-image:url('https://via.placeholder.com/600x300/8E44AD/ffffff?text=Slide+3');"></div>
-    <div class="slide" style="background-image:url('https://via.placeholder.com/600x300/27AE60/ffffff?text=Slide+4');"></div>
-    <div class="slide" style="background-image:url('https://via.placeholder.com/600x300/F1C40F/ffffff?text=Slide+5');"></div>
-  </div>
-</div>
-
-<div class="slider-controls">
-  <button id="prevBtn">前へ</button>
-  <button id="nextBtn">次へ</button>
-</div>
-
-<script>
-// パンくずクリックで現在の位置を変更（例としてalert表示）
-document.getElementById('breadcrumb').addEventListener('click', function(e) {
-  if(e.target && e.target.tagName === 'LI' && !e.target.classList.contains('active')) {
-    alert("パンくずクリック：" + e.target.textContent);
-  }
-});
-
-// スライドショー制御
-const slides = document.getElementById('slides');
-const totalSlides = slides.children.length;
-let currentIndex = 0;
-
-function showSlide(index) {
-  if(index < 0) index = totalSlides - 1;
-  if(index >= totalSlides) index = 0;
-  currentIndex = index;
-  slides.style.transform = 'translateX(' + (-index * 100/totalSlides) + '%)';
-}
-
-document.getElementById('prevBtn').addEventListener('click', () => {
-  showSlide(currentIndex - 1);
-});
-document.getElementById('nextBtn').addEventListener('click', () => {
-  showSlide(currentIndex + 1);
-});
-
-// 自動スライド（3秒ごと）
-setInterval(() => {
-  showSlide(currentIndex + 1);
-}, 3000);
-</script>
-
-</body>
-</html>`
-
-	_, _ = w.Write([]byte(html))
-}
+var (
+	addr      = flag.String("addr", ":8080", "http listen address")
+	fps       = flag.Int("fps", 20, "frames per second")
+	width     = flag.Int("w", 640, "frame width")
+	height    = flag.Int("h", 480, "frame height")
+	seqGlobal uint32
+)
 
 func main() {
-	http.HandleFunc("/", htmlHandler)
-	log.Println("Server running on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	flag.Parse()
+	http.HandleFunc("/ws", wsHandler)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(indexHTML()))
+	})
+
+	log.Printf("Listening %s (%dx%d, %d fps)", *addr, *width, *height, *fps)
+	log.Fatal(http.ListenAndServe(*addr, nil))
+}
+
+// --------------------- WebSocket Handler ---------------------
+
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	if !isWebSocketRequest(r) {
+		http.Error(w, "not a websocket request", http.StatusBadRequest)
+		return
+	}
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+	conn, _, err := hj.Hijack()
+	if err != nil {
+		log.Println("Hijack error:", err)
+		return
+	}
+	defer conn.Close()
+
+	key := r.Header.Get("Sec-WebSocket-Key")
+	if key == "" {
+		log.Println("Missing websocket key")
+		return
+	}
+	acceptKey := computeAcceptKey(key)
+	resp := "HTTP/1.1 101 Switching Protocols\r\n" +
+		"Upgrade: websocket\r\n" +
+		"Connection: Upgrade\r\n" +
+		"Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n"
+	if _, err := conn.Write([]byte(resp)); err != nil {
+		log.Println("Handshake write error:", err)
+		return
+	}
+
+	ticker := time.NewTicker(time.Duration(1000 / *fps) * time.Millisecond)
+	defer ticker.Stop()
+
+	for frame := 0; ; frame++ {
+		<-ticker.C
+		seq := atomic.AddUint32(&seqGlobal, 1)
+		jpegBytes, err := generateJPEGFrame(*width, *height, frame)
+		if err != nil {
+			log.Println("Frame generation error:", err)
+			return
+		}
+
+		header := make([]byte, 12)
+		binary.BigEndian.PutUint32(header[0:4], seq)
+		binary.BigEndian.PutUint64(header[4:12], uint64(time.Now().UnixNano()))
+		packet := append(header, jpegBytes...)
+
+		if err := wsWriteBinary(conn, packet); err != nil {
+			log.Println("Write error:", err)
+			return
+		}
+	}
+}
+
+// --------------------- WebSocket Helpers ---------------------
+
+func isWebSocketRequest(r *http.Request) bool {
+	return strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") &&
+		strings.ToLower(r.Header.Get("Upgrade")) == "websocket"
+}
+
+func computeAcceptKey(key string) string {
+	h := sha1.New()
+	h.Write([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+func wsWriteBinary(conn net.Conn, payload []byte) error {
+	var b bytes.Buffer
+	b.WriteByte(0x82) // FIN=1, opcode=2
+	plen := len(payload)
+	if plen <= 125 {
+		b.WriteByte(byte(plen))
+	} else if plen <= 65535 {
+		b.WriteByte(126)
+		binary.Write(&b, binary.BigEndian, uint16(plen))
+	} else {
+		b.WriteByte(127)
+		binary.Write(&b, binary.BigEndian, uint64(plen))
+	}
+	b.Write(payload)
+	_, err := conn.Write(b.Bytes())
+	return err
+}
+
+// --------------------- Frame Generation ---------------------
+
+func generateJPEGFrame(W, H, frameNum int) ([]byte, error) {
+	img := image.NewRGBA(image.Rect(0, 0, W, H))
+	for y := 0; y < H; y++ {
+		for x := 0; x < W; x++ {
+			rf := 0.5 + 0.5*math.Sin(float64(x)/20.0+float64(frameNum)/6.0)
+			gf := 0.5 + 0.5*math.Cos(float64(y)/20.0+float64(frameNum)/8.0)
+			bf := 0.5 + 0.5*math.Sin(float64(x+y)/40.0-float64(frameNum)/10.0)
+			img.SetRGBA(x, y, color.RGBA{
+				uint8(clampInt(int(rf*255), 0, 255)),
+				uint8(clampInt(int(gf*255), 0, 255)),
+				uint8(clampInt(int(bf*255), 0, 255)),
+				255})
+		}
+	}
+	// moving rectangle
+	rw, rh := W/6, H/6
+	rx := (frameNum*7)%(W+rw) - rw/2
+	ry := (frameNum*3)%(H+rh) - rh/2
+	rect := image.Rect(rx, ry, rx+rw, ry+rh).Intersect(img.Rect)
+	draw.Draw(img, rect, &image.Uniform{color.RGBA{255, 255, 255, 180}}, image.Point{}, draw.Over)
+
+	var buf bytes.Buffer
+	err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 80})
+	return buf.Bytes(), err
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+// --------------------- HTML Client ---------------------
+
+func indexHTML() string {
+	return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>WS Video Stream</title></head>
+<body>
+<h3>Low-latency WS Video Stream</h3>
+<canvas id="cv"></canvas>
+<script>
+const ws = new WebSocket("ws://" + location.host + "/ws");
+const canvas = document.getElementById("cv");
+const ctx = canvas.getContext("2d");
+ws.binaryType = "arraybuffer";
+ws.onmessage = (ev) => {
+	const buf = ev.data;
+	if(buf.byteLength < 12) return;
+	const pngBytes = new Uint8Array(buf, 12);
+	const img = new Image();
+	img.onload = ()=>{ canvas.width=img.width; canvas.height=img.height; ctx.drawImage(img,0,0); URL.revokeObjectURL(img.src);}
+	img.src = URL.createObjectURL(new Blob([pngBytes],{type:'image/jpeg'}));
+};
+</script>
+</body>
+</html>`
 }
