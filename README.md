@@ -2,21 +2,30 @@
 
 ## プロジェクト構成（ディレクトリ/ファイル）
 
-```
-
+.
 ├── cmd/
 │ └── main.go # APIサーバ起動エントリ
 ├── config/
 │ └── config.yaml # 設定ファイル（YAML/JSON）
 ├── internal/
 │ ├── api/
-│ │ └── handler.go # HTTPハンドラ、ルーティング
+│ │ ├── handler.go # HTTPハンドラ、ルーティング
+│ │ ├── file_upload.go # ファイル投稿機能ハンドラ
+│ │ ├── twofactor.go # 2FA認証ハンドラ
+│ │ ├── location.go # 位置情報サービスハンドラ
+│ │ └── qrcode.go # QRコード生成APIハンドラ
 │ ├── db/
 │ │ └── db.go # DB接続・トランザクション管理
 │ ├── model/
-│ │ └── model.go # パラメータモデル、リクエスト/レスポンス定義
+│ │ ├── model.go # パラメータモデル、リクエスト/レスポンス定義
+│ │ ├── auth.go # 認証関連モデル（2FA, トークンなど）
+│ │ ├── file.go # ファイルデータモデル
+│ │ └── location.go # 位置情報モデル
 │ ├── utils/
-│ │ └── errors.go # ユーティリティ関数、エラーハンドリング
+│ │ ├── errors.go # ユーティリティ関数、エラーハンドリング
+│ │ ├── qrcode.go # QRコード生成ユーティリティ
+│ │ ├── twofactor.go # 2FA認証ユーティリティ
+│ │ └── file.go # ファイル操作ユーティリティ
 │ └── stable_diffusion/
 │ └── diffusion.go # 画像生成処理本体
 ├── scripts/
@@ -25,7 +34,6 @@
 └── docs/
 └── design.md # ドキュメント
 
-```
 
 ---
 
@@ -73,15 +81,23 @@
 | audio_data         | 音声情報・テキスト音声変換データ|
 | video_data         | 動画データメタ                  |
 | generation_history | ジョブ履歴、ステータス          |
+| twofactor          | 2FA関連情報                    |
+| files              | ユーザーアップロードファイル情報 |
+| location_data      | 位置情報サービス関連データ       |
+| qrcodes            | 生成QRコード情報                |
 
 ### 認証方式
 - APIキー / JWT認証（OAuth2検討）
 - ロールベースアクセス制御（RBAC）
+- 2FA認証追加（TOTPやSMS連携）
 
 ### パラメータ分類
 - 画像生成パラメータ（プロンプト文字列、解像度、ステップ数、シード値）
 - 音声変換パラメータ（テキスト・音声フォーマット指定）
 - 動画生成・編集パラメータ（フレーム数、ビットレート等）
+- ファイルアップロードパラメータ（ファイルタイプ、サイズ、保存先）
+- 位置情報パラメータ（緯度・経度、住所解決情報）
+- 2FAパラメータ（ユーザーID、トークン）
 
 ---
 
@@ -124,4 +140,10 @@ kubectl expose deployment stable-diffusion-go-api --type=LoadBalancer --port=80 
 
 ---
 
-このREADMEはGo言語のStable Diffusion APIを開発・運用する上での基本設計指針と運用要素をまとめたものです。詳細実装はプロジェクト要件に応じて追加してください。
+このREADMEはGo言語のStable Diffusion APIに
+- QRコード生成（internal/api/qrcode.go, internal/utils/qrcode.go）
+- 2FA認証（internal/api/twofactor.go, internal/utils/twofactor.go）
+- ファイル投稿機能（internal/api/file_upload.go, internal/utils/file.go）
+- 位置情報サービス（internal/api/location.go, internal/model/location.go）
+
+を追加した設計構成を反映したものです。
