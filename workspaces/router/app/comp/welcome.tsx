@@ -70,7 +70,7 @@ const resources = [
     ),
   },
   {
-    href:"/chat",
+    href:"/gemini",
     text:"Go AIchat",
     icon:(
       <svg

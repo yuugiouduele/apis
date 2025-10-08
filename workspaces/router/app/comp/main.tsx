@@ -8,7 +8,7 @@ export function Mains(){
   const text = "Happy Welcome";
   
   const questions = [
-    { id: 1, text: "Annual income?", icon: "🌤️" ,href:'/intro'},
+    { id: 1, text: "Introduction?", icon: "🌤️" ,href:'/intro'},
     { id: 2, text: "Skill up?", icon: "🎬" ,href:'/chat'},
     { id: 3, text: "Business Consulting?", icon: "🍳" ,href:'/manual'},
     { id: 4, text: "Other contact information", icon: "✈️" ,href:'/camera'}
