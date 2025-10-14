@@ -326,15 +326,6 @@ OLAP ライヤー導入 (ClickHouse, Apache Druid 等)
 
 性能テスト・負荷試験設計
 
-以上が仕様書の統合版テンプレート案です。
-
-必要であれば、このテンプレートをプロジェクト用にカスタマイズした Markdown ファイルをそのまま生成してお送りしますし、API 仕様を OpenAPI 形式 (Swagger / OpenAPI YAML) に変換するお手伝いもできます。どうしますか？
-
-あなた:
-Markdown生成してください。
-ChatGPT:
-
-以下が、仕様書を Markdown 形式 でまとめたものです。これをプロジェクトのルートに SPECIFICATION.md などとして配置すると良いでしょう。あとで必要なら微調整・加筆もできます。
 
 # システム設計仕様書
 
@@ -744,4 +735,4 @@ Prometheus / Grafana によるメトリクス収集・可視化
 
 
 ---
-::contentReference[oaicite:0]{index=0}
+
