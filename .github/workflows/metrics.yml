@@ -1,0 +1,66 @@
+name: Test with Metrics
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  run-tests-with-metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # （オプション）依存インストール、ビルドなど
+      - name: Setup environment
+        run: |
+          # 例：Go, Python, Java 環境セットアップ
+          # apt-get install sysstat ifstat
+          sudo apt-get update
+          sudo apt-get install -y sysstat ifstat
+
+      # ステップ：メトリクス収集バックグラウンド
+      - name: Start metrics sampling
+        run: |
+          # CPU / メモリ を 1 秒ごとに記録
+          sar 1 > sar_cpu_mem.log 2>&1 &
+          PID_SAR=$!
+          # ネットワーク I/O を 1 秒ごとに記録
+          ifstat -t 1 > netio.log 2>&1 &
+          PID_IFSTAT=$!
+          echo "${PID_SAR} ${PID_IFSTAT}" > metrics_pids.txt
+
+      # 実際の単体テスト実行
+      - name: Run tests
+        run: |
+          # 例：Go, Python, Java のテスト
+          go test ./... -timeout 30s
+          # python -m pytest
+          # mvn test etc.
+
+      # 停止 & レポート取得
+      - name: Stop metrics sampling & upload logs
+        run: |
+          read PID_SAR PID_IFSTAT < metrics_pids.txt
+          kill $PID_SAR || true
+          kill $PID_IFSTAT || true
+          # レポートをログとして出力
+          echo "===== CPU / MEM usage (sar) ====="
+          tail -n 20 sar_cpu_mem.log
+          echo "===== Network I/O (ifstat) ====="
+          tail -n 20 netio.log
+        # アーティファクトとして保存
+      - name: Upload metric logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-metrics
+          path: [ sar_cpu_mem.log, netio.log ]
+
+      # （オプション）PR にコメントでレポート出力
+      - name: Post metrics comment on PR
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          comment_on_pr: true
