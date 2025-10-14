@@ -12,6 +12,7 @@
     "@react-router/fs-routes": "^7.8.0",
     "@react-router/node": "^7.7.1",
     "@react-router/serve": "^7.7.1",
+    "axios": "^1.12.2",
     "isbot": "^5.1.27",
     "lucide-react": "^0.539.0",
     "react": "^18.3.1",
@@ -19,7 +20,8 @@
     "react-dom": "^18.3.1",
     "react-router": "^7.7.1",
     "react-router-dom": "^7.8.0",
-    "react-webcam": "^7.2.0"
+    "react-webcam": "^7.2.0",
+    "voicevox-api-client": "^1.1.1"
   },
   "devDependencies": {
     "@react-router/dev": "^7.7.1",

@@ -1,6 +1,8 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { generateContent } from "../api/fetch";
+import { getVoiceVoxAudio } from "~/api/voicebox";
+import { LeftAlignedVerticalNavBar } from "./mini/nav";
 
 // === Roleごとのテンプレート ===
 const roleTemplates = {
@@ -56,8 +58,56 @@ export const GeminiSearch: React.FC = () => {
     }
   };
 
+// useEffect(() => {
+//     if (response) {
+//       const utter = new window.SpeechSynthesisUtterance(response);
+//       utter.lang = "ja-JP";
+//       window.speechSynthesis.speak(utter);
+//     }
+//   }, [response]); // レスポンス更新時に実行
+function chunkText(text: string, size: number): string[] {
+  const re = new RegExp(`.{1,${size}}`, "g");
+  return text.match(re) || [];
+}
+
+  useEffect(() => {
+    if (!response) return;
+
+    (async () => {
+      try {
+        const chunks = chunkText(response, 500);
+        for (const chunk of chunks) {
+          if (!chunk.trim()) continue;
+
+          // VOICEVOX APIから音声Blob取得
+          const blob = await getVoiceVoxAudio(chunk, 2);
+
+          // BlobをURLに変換しAudio生成
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+
+          // 再生完了までstopしloadingもキャンセル
+          await new Promise<void>((resolve) => {
+            audio.onended = () => {
+              URL.revokeObjectURL(url);
+              resolve();
+            };
+            audio.play();
+          });
+        }
+      } catch (e) {
+        console.error("VOICEVOX音声合成に失敗：", e);
+      }
+    })();
+  }, [response]);
+
+
+
   return (
+    
     <div className="p-6 max-w-3xl mx-auto space-y-4 bg-gray-950 rounded-xl shadow-lg text-gray-100">
+      
+  <LeftAlignedVerticalNavBar/>
       <div className="flex items-center gap-2">
         {/* 入力バー */}
         <input
@@ -103,6 +153,7 @@ export const GeminiSearch: React.FC = () => {
     <div>{response || "💡 結果がここに表示されます。"}</div>
   )}
       </div>
+      
 
       {/* ===== モーダル ===== */}
       {showModal && (
