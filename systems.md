@@ -199,7 +199,7 @@ GitHub Actions → (CI/CD) → Kubernetes クラスタ
 
 以下は主要テーブル間の関係を示した簡易 ER 図（Mermaid 形式も併記）：
 
-```mermaid
+```
 erDiagram
   user_account ||--o{ user_2fa : has
   user_account ||--o{ user_pin : has
