@@ -199,7 +199,7 @@ GitHub Actions → (CI/CD) → Kubernetes クラスタ
 
 以下は主要テーブル間の関係を示した簡易 ER 図（Mermaid 形式も併記）：
 
-```
+```sh
 erDiagram
   user_account ||--o{ user_2fa : has
   user_account ||--o{ user_pin : has
@@ -226,9 +226,7 @@ erDiagram
     close DOUBLE
     volume BIGINT
   }
-
-
-以下は、テーブル設計例と型定義です。
+```
 
 3.2 主要テーブル定義例
 
@@ -352,16 +350,14 @@ OLAP ライヤー導入 (ClickHouse, Apache Druid 等)
 
 ### 2.2 アーキテクチャ概観
 
-
-
+```
 GitHub Actions → (CI/CD) → Kubernetes クラスタ
 ├→ API サービス（Go）
 ├→ AI モデルサービス（Python）
 ├→ フロントエンド（React）
 ├→ ステージング / テスト環境
 └→ 監視スタック（Prometheus, Grafana, ログ集約）
-
-
+```
 - 各サービス間通信には認証／認可ゲートウェイを設置  
 - 冗長構成・スケール設計・可観測性導入  
 - メトリクス・ログ・トレースの一元収集とアラート体制を整備  
@@ -401,9 +397,7 @@ erDiagram
     close DOUBLE
     volume BIGINT
   }
-
-
-以下に、主要テーブル定義例と型を示します。
+```
 
 3.2 主要テーブル定義例（型付き）
 ```sh
