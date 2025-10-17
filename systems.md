@@ -81,7 +81,7 @@ ai.prompt_similarity は prompt 同士の関連を持つ（自己参照的リレ
 ドメイン系（例：finance_price, forum_post, space_coordinate, bio_experiment, bio_analysis_result）も user_account または該当テーブルと関連
 
 簡易 ASCII ER 図
-
+```
 [user_account]───┬── (1) ──[user_2fa]
                  │
                  ├──(1)──[user_pin]
@@ -105,7 +105,7 @@ ai.prompt_similarity は prompt 同士の関連を持つ（自己参照的リレ
 [user_account]───┬──(many)──[bio_experiment]───(many)──[bio_analysis_result]
 
 [finance_price] -- no direct to user (or via symbol-metadata table)
-
+```
 
 “(1)” は主キー側 1 対 “多” 側を示す
 
@@ -143,14 +143,6 @@ erDiagram
     volume BIGINT
   }
 ```
-
-このような ERD を README や設計資料に含めておくと、ドメイン構造が見やすくなります。
-
-3. 仕様書統合 Markdown テンプレート
-
-以下は、これまでの API 仕様、ER 図、テーブル設計、アーキテクチャ概要などを順序よくまとめた SPECIFICATION.md（または DESIGN.md 等）テンプレートです。
-
-適宜章・節を追加・編集してご利用ください。
 
 # システム設計仕様書
 
