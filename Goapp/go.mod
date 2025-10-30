@@ -1,3 +1,3 @@
-module src
+module 
 
 go 1.22.12
