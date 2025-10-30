@@ -3,13 +3,14 @@ module src
 go 1.24.0
 
 require (
-	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1 // indirect
-	github.com/emiago/sipgo v0.33.0 // indirect
-	github.com/gobwas/httphead v0.1.0 // indirect
-	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.3.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
-	github.com/icholy/digest v1.1.0 // indirect
+	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
+	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/gorilla/websocket v1.5.3
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.30.1
+)
+
+require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.7.5 // indirect
@@ -17,12 +18,8 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/lib/pq v1.10.9 // indirect
-	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/rtp v1.8.21 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
-	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.30.1 // indirect
 )
