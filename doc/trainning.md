@@ -72,6 +72,7 @@ for X, Y, T in dataloader:
     z = causal_encoder(X)
     Y_hat = g_phi(z, T)
     L = L_task(Y_hat, Y) + λ1 * L_causal(Y_hat, Y, T)
+```
 ここで L_geo, L_reg は無効化。
 
 出力 z の分布が安定するまで訓練（通常 5〜10 epoch）
@@ -87,9 +88,10 @@ Laplacian正則化を導入して構造的滑らかさを維持。
 トリック:
 隣接行列 A を逐次学習更新（soft thresholding）。
 
-python
-コードをコピーする
-A = sigmoid(W_A) * mask  # mask: スパース化制約
+```python
+A = sigmoid(W_A) * mask
+# mask: スパース化制約
+```
 Phase 3: Causal Attention 統合訓練
 目的：RoPEを因果距離に置換したAttentionの安定化。
 対象：全層（Encoder + GNN + Attention）。
@@ -217,12 +219,12 @@ Dockerfile 内で依存性管理
 
 Seed固定
 
-python
-コードをコピーする
+```python
 import torch, numpy as np, random
 torch.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
+```
 ログ管理
 
 W&B または TensorBoard に以下を記録：
@@ -243,11 +245,11 @@ meta_controller.pt	Phase4 終了時	自律計算制御モデル
 IX. モニタリングとデバッグ
 勾配NaN検出
 
-python
-コードをコピーする
+```python
 if torch.isnan(L_total):
     print("NaN detected, skipping batch")
     continue
+```
 因果Attention可視化
 
 MatplotlibでA_causalのヒートマップを描画。

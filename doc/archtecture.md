@@ -36,8 +36,7 @@
 
 ### III. 全体フロー
 
-java
-コードをコピーする
+```java
      ┌───────────────────────────┐
      │        Input Data X        │
      └────────────┬──────────────┘
@@ -70,8 +69,7 @@ java
             ┌──────────┐
             │  Output   │
             └──────────┘
-yaml
-コードをコピーする
+```
 
 ---
 
@@ -85,6 +83,8 @@ yaml
 ```python
 z = f_theta(X)
 Y_hat = g_phi(z, T)
+```
+
 内部要素:
 
 標準FNN + LayerNorm
@@ -372,13 +372,13 @@ i
 
 実装案:
 
-python
-コードをコピーする
+```python
 for block in model.blocks:
     delta_L = estimate_loss_reduction(block)
     u = torch.sigmoid(alpha * delta_L - beta * block.cost)
     if u > threshold:
         y = block(y)
+```
 注意点:
 
 ループ内でbackpropを通すため、uを微分可能に保つ。
@@ -469,8 +469,7 @@ L_geo: ノード連結安定性損失
 L_reg: L_DC + L_Dis + L_Stable
 
 V. 学習ループ設計（擬似コード）
-python
-コードをコピーする
+```python
 for epoch in range(EPOCHS):
     for X, Y, T in dataloader:
         # 1. forward
@@ -492,10 +491,13 @@ for epoch in range(EPOCHS):
         L_total.backward()
         clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
+```
 VI. 安定化および再現性管理
 再現性確保
 
+```python
 torch.manual_seed(42)
+```
 
 乱数・データシャッフル固定
 
