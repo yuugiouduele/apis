@@ -16,8 +16,7 @@
 
 ### II. 全体アーキテクチャ構成図
 
-bash
-コードをコピーする
+```bash
          ┌──────────────────────────────────┐
          │          Frontend UI             │
          │ (dashboard / visualization)      │
@@ -46,9 +45,7 @@ bash
          │ Cloud Scheduler / PubSub Trigger  │
          │ (定期解析・再学習ジョブ実行)      │
          └──────────────────────────────────┘
-yaml
-コードをコピーする
-
+```
 ---
 
 ### III. Model Layer 構成
