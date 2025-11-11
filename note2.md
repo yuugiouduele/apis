@@ -1,4 +1,4 @@
-# Tuning for AImodel with LLVM
+# Tuning for AImodel with LLVM IR
 
 ```mermaid
 flowchart TD
