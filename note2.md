@@ -16,9 +16,9 @@ flowchart TD
 flowchart TD
 
     A[Input Stream] --> B[Sliding Window 32KB]
-    B --> C[Match Finder (Longest Match)]
-    C -->|Match| D[LZ77 Tokens (len, dist)]
-    C -->|Literal| E[Literal Bytes]
+    B --> C[Match Finder Longest]
+    C -->|Match| D[LZ77 Token len dist]
+    C -->|Literal| E[Literal Byte]
 
     D --> F[Token Stream]
     E --> F
@@ -29,11 +29,11 @@ flowchart TD
 
     I --> J[CRC32 Gen]
     I --> K[Header Build]
-    J --> L[Footer (CRC, Size)]
+    J --> L[Footer CRC Size]
 
     K --> M[Output Stream]
     I --> M
     L --> M
 
-    M --> N[Compressed .gz File]
+    M --> N[Compressed gz File]
 ```
