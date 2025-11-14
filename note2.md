@@ -15,25 +15,25 @@ flowchart TD
 ```mermaid
 flowchart TD
 
-    A[Input Stream] --> B[Sliding Window<br/>32KB Search Buffer]
-    B --> C[Match Finder<br/>(Longest Match Search)]
-    C -->|Match Found| D[LZ77 Tokens<br/>(<length, distance>)]
-    C -->|No Match| E[Literal Bytes]
+    A[Input Stream] --> B[Sliding Window 32KB]
+    B --> C[Match Finder (Longest Match)]
+    C -->|Match| D[LZ77 Tokens (len, dist)]
+    C -->|Literal| E[Literal Bytes]
 
     D --> F[Token Stream]
     E --> F
 
-    F --> G[Frequency Counter<br/>(Dynamic Huffman)]
-    G --> H[Huffman Tree Generator<br/>(Literal/Length & Distance Trees)]
-    H --> I[Bit Encoder<br/>(Huffman-coded bitstream)]
+    F --> G[Freq Counter]
+    G --> H[Huffman Tree Gen]
+    H --> I[Bit Encoder]
 
-    I --> J[CRC32 Generator]
-    I --> K[Header Builder<br/>(Magic Bytes / Flags / Timestamps)]
-    J --> L[Footer (CRC32 & ISIZE)]
+    I --> J[CRC32 Gen]
+    I --> K[Header Build]
+    J --> L[Footer (CRC, Size)]
 
     K --> M[Output Stream]
     I --> M
     L --> M
 
-    M --> N[Compressed File (.gz)]
+    M --> N[Compressed .gz File]
 ```
